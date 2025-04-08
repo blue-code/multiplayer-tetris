@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>멀티플레이어 테트리스</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="container">
+    <div class="game-area">
+      <h1>멀티플레이어 테트리스</h1>
+      <input id="roomInput" type="text" placeholder="방 ID 입력">
+      <button id="joinButton">참여</button>
+      <button id="startButton">게임 시작</button>
+      <div id="players"></div>
+      <div class="boards">
+        <canvas id="myCanvas" width="200" height="400"></canvas>
+        <div id="opponentBoards"></div>
+      </div>
+      <div id="score">점수: 0</div>
+      <div id="gameMessage"></div>
+    </div>
+  </div>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
