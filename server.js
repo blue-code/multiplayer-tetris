@@ -16,12 +16,13 @@ const rooms = {};
 io.on('connection', (socket) => {
   console.log('플레이어 접속:', socket.id);
 
-  // 방에 참여
-  socket.on('joinRoom', (roomId) => {
+  // 방에 참여 (닉네임과 방 ID 수신)
+  socket.on('joinRoom', (data) => {
+    const { roomId, nickname } = data;
     socket.join(roomId);
     if (!rooms[roomId]) rooms[roomId] = { players: [], started: false };
-    rooms[roomId].players.push({ id: socket.id, board: null, score: 0, gameOver: false });
-    io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.id));
+    rooms[roomId].players.push({ id: socket.id, nickname, board: null, score: 0, gameOver: false });
+    io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.nickname));
   });
 
   // 보드 상태 업데이트
@@ -54,7 +55,7 @@ io.on('connection', (socket) => {
     if (allOver) {
       const winner = rooms[roomId].players.reduce((prev, curr) => 
         prev.score > curr.score ? prev : curr);
-      io.to(roomId).emit('gameEnded', winner.id);
+      io.to(roomId).emit('gameEnded', winner.nickname);  // 닉네임으로 승자 표시
     }
   });
 
@@ -65,7 +66,7 @@ io.on('connection', (socket) => {
     if (rooms[roomId]) {
       rooms[roomId].players = rooms[roomId].players.filter(p => p.id !== socket.id);
       if (rooms[roomId].players.length === 0) delete rooms[roomId];
-      else io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.id));
+      else io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.nickname));
     }
   });
 });

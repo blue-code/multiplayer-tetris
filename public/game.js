@@ -4,7 +4,7 @@ const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('score');
 const gameMessage = document.getElementById('gameMessage');
 const opponentBoards = document.getElementById('opponentBoards');
-const playersList = document.getElementById('players');
+const playersList = document.getElementById('playersList');  // 닉네임 목록 표시
 
 const ROWS = 20;
 const COLS = 10;
@@ -23,10 +23,15 @@ const PIECES = [
   [[1, 1, 1], [0, 0, 1]]  // J
 ];
 
-// 방 참여
+// 방 참여 (닉네임과 방 ID 전송)
 document.getElementById('joinButton').addEventListener('click', () => {
   const roomId = document.getElementById('roomInput').value;
-  socket.emit('joinRoom', roomId);
+  const nickname = document.getElementById('nicknameInput').value;
+  if (!nickname || !roomId) {
+    alert('닉네임과 방 ID를 모두 입력하세요!');
+    return;
+  }
+  socket.emit('joinRoom', { roomId, nickname });
 });
 
 // 게임 시작
@@ -34,9 +39,9 @@ document.getElementById('startButton').addEventListener('click', () => {
   socket.emit('startGame');
 });
 
-// 플레이어 목록 업데이트
-socket.on('playerList', (playerIds) => {
-  playersList.textContent = `접속 중: ${playerIds.join(', ')}`;
+// 플레이어 목록 업데이트 (닉네임 표시)
+socket.on('playerList', (nicknames) => {
+  playersList.textContent = `접속 중: ${nicknames.join(', ')}`;
 });
 
 // 게임 시작 알림
@@ -71,9 +76,9 @@ socket.on('addPenaltyLines', (lines) => {
 });
 
 // 게임 종료
-socket.on('gameEnded', (winnerId) => {
+socket.on('gameEnded', (winnerNickname) => {
   gameOver = true;
-  gameMessage.textContent = `게임 종료! 승자: ${winnerId}`;
+  gameMessage.textContent = `게임 종료! 승자: ${winnerNickname}`;
 });
 
 function startGame() {
