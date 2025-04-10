@@ -139,6 +139,12 @@ socket.on('gameStarted', (options) => {
   gameMessage.textContent = '게임이 시작되었습니다!';
   gameStarted = true;
   
+  // 결과 팝업 초기화
+  const resultPopup = document.getElementById('resultPopup');
+  if (resultPopup) {
+    resultPopup.classList.remove('show');
+  }
+  
   // 게임 시작 후 설정 패널 숨기기
   settingsPanel.classList.add('hidden');
   
@@ -214,7 +220,7 @@ socket.on('addPenaltyLines', (data) => {
   }, 2000);
 });
 
-// 게임 종료
+// 게임 종료 이벤트 처리 함수 수정
 socket.on('gameEnded', (data) => {
   gameOver = true;
   gameStarted = false;
@@ -230,12 +236,42 @@ socket.on('gameEnded', (data) => {
   
   gameMessage.textContent = winnerMessage;
   
+  // 결과 팝업 표시
+  showResultPopup(isWinner);
+  
   // 게임 종료 후 설정 패널 다시 표시하고 시작 버튼 활성화
   setTimeout(() => {
     settingsPanel.classList.remove('hidden');
     startButton.disabled = false;
-  }, 1000);
+  }, 2500); // 팝업이 표시되는 시간보다 좀 더 길게 설정
 });
+
+// 결과 팝업을 표시하는 함수 추가
+function showResultPopup(isWinner) {
+  const resultPopup = document.getElementById('resultPopup');
+  const resultText = document.getElementById('resultText');
+  
+  if (!resultPopup || !resultText) return;
+  
+  // 승자/패자에 따른 텍스트와 스타일 설정
+  if (isWinner) {
+    resultText.textContent = 'WINNER';
+    resultPopup.classList.add('winner');
+    resultPopup.classList.remove('loser');
+  } else {
+    resultText.textContent = 'LOSER';
+    resultPopup.classList.add('loser');
+    resultPopup.classList.remove('winner');
+  }
+  
+  // 팝업 표시
+  resultPopup.classList.add('show');
+  
+  // 2초 후 팝업 숨기기
+  setTimeout(() => {
+    resultPopup.classList.remove('show');
+  }, 2000);
+}
 
 // 에러 메시지
 socket.on('error', (data) => {
