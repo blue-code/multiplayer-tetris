@@ -66,13 +66,16 @@ socket.on('updateOpponentBoard', (players) => {
   });
 });
 
-// 패널티 라인 추가
+// 패널티 라인 추가 (아래쪽에 불완전한 줄로 추가)
 socket.on('addPenaltyLines', (lines) => {
   for (let i = 0; i < lines; i++) {
-    board.shift();
-    board.push(Array(COLS).fill(1));
+    // 불완전한 줄 생성 (랜덤으로 한 칸 비움)
+    const penaltyLine = Array(COLS).fill(1); // 모두 채움
+    penaltyLine[Math.floor(Math.random() * COLS)] = 0; // 한 칸 비움
+    board.shift(); // 맨 위 줄 제거
+    board.push(penaltyLine); // 맨 아래에 불완전한 줄 추가
   }
-  render();
+  render(); // 화면 갱신
 });
 
 // 게임 종료
@@ -146,19 +149,28 @@ function fixPiece() {
 
 function clearLines() {
   let linesCleared = 0;
+
+  // 보드의 아래쪽부터 위로 확인
   for (let i = ROWS - 1; i >= 0; i--) {
-    if (board[i].every(cell => cell)) {
-      board.splice(i, 1);
-      board.unshift(Array(COLS).fill(0));
-      score += 100;
+    if (board[i].every(cell => cell === 1)) { // 라인이 완전히 채워졌는지 확인
+      board.splice(i, 1); // 해당 라인 제거
       linesCleared++;
-      i++;
     }
   }
-  scoreDisplay.textContent = `점수: ${score}`;
+
+  // 제거한 라인 수만큼 맨 위에 빈 라인 추가
+  for (let i = 0; i < linesCleared; i++) {
+    board.unshift(Array(COLS).fill(0)); // 빈 라인 추가
+  }
+
+  // 점수 업데이트 및 서버로 전송
   if (linesCleared > 0) {
+    score += linesCleared * 100;
+    scoreDisplay.textContent = `점수: ${score}`;
     socket.emit('updateBoard', { board, score, linesCleared });
   }
+
+  render(); // 화면 즉시 갱신
 }
 
 function render() {

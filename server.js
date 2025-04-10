@@ -21,7 +21,7 @@ io.on('connection', (socket) => {
     const { roomId, nickname } = data;
     socket.join(roomId);
     if (!rooms[roomId]) rooms[roomId] = { players: [], started: false };
-    rooms[roomId].players.push({ id: socket.id, nickname, board: null, score: 0, gameOver: false });
+    rooms[roomId].players.push({ id: socket.id, nickname, board: null, score: 0, gameOver: false, startTime: null });
     io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.nickname));
   });
 
@@ -42,6 +42,11 @@ io.on('connection', (socket) => {
     const roomId = getRoomId(socket);
     if (!rooms[roomId].started && rooms[roomId].players.length >= 2) {
       rooms[roomId].started = true;
+      const currentTime = Date.now();
+      // 모든 플레이어의 시작 시간 기록
+      rooms[roomId].players.forEach(player => {
+        player.startTime = currentTime;
+      });
       io.to(roomId).emit('gameStarted');
     }
   });
@@ -51,11 +56,22 @@ io.on('connection', (socket) => {
     const roomId = getRoomId(socket);
     const player = rooms[roomId].players.find(p => p.id === socket.id);
     player.gameOver = true;
+
+    // 모든 플레이어가 게임 오버되었는지 확인
     const allOver = rooms[roomId].players.every(p => p.gameOver);
     if (allOver) {
-      const winner = rooms[roomId].players.reduce((prev, curr) => 
-        prev.score > curr.score ? prev : curr);
-      io.to(roomId).emit('gameEnded', winner.nickname);  // 닉네임으로 승자 표시
+      // 승자 결정
+      const winner = rooms[roomId].players.reduce((prev, curr) => {
+        if (prev.score > curr.score) {
+          return prev;
+        } else if (prev.score < curr.score) {
+          return curr;
+        } else {
+          // 점수가 동률이면 startTime이 더 이른 플레이어 선택
+          return prev.startTime < curr.startTime ? prev : curr;
+        }
+      });
+      io.to(roomId).emit('gameEnded', winner.nickname); // 승자 발표
     }
   });
 
