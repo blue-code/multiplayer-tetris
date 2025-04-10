@@ -2,54 +2,150 @@ const socket = io();
 const canvas = document.getElementById('myCanvas');
 const ctx = canvas.getContext('2d');
 const scoreDisplay = document.getElementById('score');
+const levelDisplay = document.getElementById('level');
 const gameMessage = document.getElementById('gameMessage');
 const opponentBoards = document.getElementById('opponentBoards');
-const playersList = document.getElementById('playersList');  // 닉네임 목록 표시
+const playersList = document.getElementById('players');
+const roomInfo = document.getElementById('roomInfo');
+const joinButton = document.getElementById('joinButton');
+const startButton = document.getElementById('startButton');
+const nicknameInput = document.getElementById('nicknameInput');
+const welcomeScreen = document.getElementById('welcomeScreen');
+const gameScreen = document.getElementById('gameScreen');
+const settingsPanel = document.getElementById('settingsPanel');
+const rotationOption = document.getElementById('rotationOption');
+const penaltyOption = document.getElementById('penaltyOption');
+const difficultyOption = document.getElementById('difficultyOption');
+const speedIncreaseTime = document.getElementById('speedIncreaseTime');
 
 const ROWS = 20;
 const COLS = 10;
 const BLOCK_SIZE = canvas.width / COLS;
 let board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
 let score = 0;
+let level = 1;
 let gameOver = false;
 let currentPiece = null;
 let opponents = {};
+let gameSpeed = 500; // 초기 속도 (ms)
+let difficultyTimer = null;
+let playerNickname = '';
+let currentRoomId = null;
+let gameStarted = false;
+let gameOptions = {};
 
-// 개선안: PIECES 배열에 누락된 조각 추가
+// 난이도별 초기 속도 설정
+const DIFFICULTY_SPEEDS = {
+  easy: 600,
+  normal: 500,
+  hard: 300
+};
+
+// 난이도별 속도 증가율
+const DIFFICULTY_INCREASE = {
+  easy: 50,
+  normal: 75,
+  hard: 100
+};
+
 const PIECES = [
   [[1, 1, 1, 1]], // I
   [[1, 1], [1, 1]], // O
   [[1, 1, 1], [0, 1, 0]], // T
   [[1, 1, 1], [1, 0, 0]], // L
-  [[1, 1, 1], [0, 0, 1]], // J
-  [[0, 1, 1], [1, 1, 0]], // S (추가)
-  [[1, 1, 0], [0, 1, 1]]  // Z (추가)
+  [[1, 1, 1], [0, 0, 1]]  // J
 ];
 
-// 방 참여 (닉네임만 입력하면 됨)
-document.getElementById('joinButton').addEventListener('click', () => {
-  const nickname = document.getElementById('nicknameInput').value;
+// 닉네임 입력 후 게임 참여
+joinButton.addEventListener('click', () => {
+  const nickname = nicknameInput.value.trim();
   if (!nickname) {
-    alert('닉네임을 입력하세요!');
+    alert('닉네임을 입력해주세요.');
     return;
   }
-  const roomId = 'defaultRoom'; // 고정된 방 ID
-  socket.emit('joinRoom', { roomId, nickname });
+  
+  playerNickname = nickname;
+  
+  // 기본 방 "main"으로 자동 입장
+  const defaultRoom = "main";
+  socket.emit('joinRoom', { roomId: defaultRoom, nickname: playerNickname });
+  
+  // 환영 화면 숨기고, 게임 로비 화면 표시
+  welcomeScreen.style.display = 'none';
+  gameScreen.style.display = 'block';
+  
+  // 설정 패널 표시
+  settingsPanel.classList.remove('hidden');
+  
+  gameMessage.textContent = '게임 방에 입장했습니다. 다른 플레이어를 기다리는 중...';
 });
 
-// 게임 시작
-document.getElementById('startButton').addEventListener('click', () => {
-  socket.emit('startGame');
+// 게임 시작 버튼
+startButton.addEventListener('click', () => {
+  // 게임 옵션 수집
+  gameOptions = {
+    rotation: rotationOption.checked,
+    penalty: penaltyOption.checked,
+    difficulty: difficultyOption.value,
+    speedIncreaseInterval: parseInt(speedIncreaseTime.value) * 1000 // 밀리초로 변환
+  };
+  
+  // 서버에 게임 시작 요청 및 옵션 전송
+  socket.emit('startGame', gameOptions);
 });
 
-// 플레이어 목록 업데이트 (닉네임 표시)
-socket.on('playerList', (nicknames) => {
-  playersList.textContent = `접속 중: ${nicknames.join(', ')}`;
+// 플레이어 목록 업데이트
+socket.on('playerList', (players) => {
+  playersList.innerHTML = '';
+  
+  if (players.length === 0) {
+    playersList.textContent = '접속 중인 플레이어가 없습니다.';
+    return;
+  }
+  
+  players.forEach(player => {
+    const playerItem = document.createElement('div');
+    playerItem.className = 'player-item';
+    if (player.id === socket.id) {
+      playerItem.classList.add('me');
+      playerItem.textContent = `${player.nickname} (나)`;
+    } else {
+      playerItem.textContent = player.nickname;
+    }
+    playersList.appendChild(playerItem);
+  });
+  
+  // 최소 2명 이상이면 게임 시작 버튼 활성화
+  startButton.disabled = players.length < 2 || gameStarted;
+  
+  if (players.length < 2 && !gameStarted) {
+    gameMessage.textContent = '게임 시작을 위해 최소 2명의 플레이어가 필요합니다.';
+  } else if (!gameStarted) {
+    gameMessage.textContent = '게임을 시작할 수 있습니다!';
+  }
+});
+
+// 방 정보 업데이트
+socket.on('roomInfo', (info) => {
+  currentRoomId = info.roomId;
+  roomInfo.textContent = `방: ${info.roomId} (${info.playerCount}명 접속 중)`;
 });
 
 // 게임 시작 알림
-socket.on('gameStarted', () => {
+socket.on('gameStarted', (options) => {
   gameMessage.textContent = '게임이 시작되었습니다!';
+  gameStarted = true;
+  
+  // 게임 시작 후 설정 패널 숨기기
+  settingsPanel.classList.add('hidden');
+  
+  // 시작 버튼 비활성화
+  startButton.disabled = true;
+  
+  // 기존 옵션과 서버에서 받은 옵션 병합
+  gameOptions = {...gameOptions, ...options};
+  
+  // 게임 시작
   startGame();
 });
 
@@ -57,61 +153,140 @@ socket.on('gameStarted', () => {
 socket.on('updateOpponentBoard', (players) => {
   opponents = {};
   opponentBoards.innerHTML = '';
+  
   players.forEach(p => {
     if (p.id !== socket.id) {
       opponents[p.id] = p;
+      
+      // 상대방 정보 컨테이너
+      const oppContainer = document.createElement('div');
+      oppContainer.className = 'opponent-container';
+      
+      // 상대방 캔버스
       const oppCanvas = document.createElement('canvas');
       oppCanvas.width = 100;
       oppCanvas.height = 200;
-      opponentBoards.appendChild(oppCanvas);
+      oppCanvas.className = 'opponent-canvas';
+      
+      // 상대방 정보 표시
+      const oppInfo = document.createElement('div');
+      oppInfo.className = 'opponent-info';
+      oppInfo.innerHTML = `
+        <div>${p.nickname || '익명'}</div>
+        <div>점수: ${p.score || 0}</div>
+        <div>레벨: ${p.level || 1}</div>
+      `;
+      
+      oppContainer.appendChild(oppCanvas);
+      oppContainer.appendChild(oppInfo);
+      opponentBoards.appendChild(oppContainer);
+      
+      // 상대방 보드 렌더링
       renderBoard(oppCanvas.getContext('2d'), p.board, oppCanvas.width / COLS);
     }
   });
 });
 
-// 패널티 라인 추가 (아래쪽에 불완전한 줄로 추가)
-socket.on('addPenaltyLines', (lines) => {
+// 패널티 라인 추가
+socket.on('addPenaltyLines', (data) => {
+  // 패널티 옵션이 꺼져있으면 무시
+  if (!gameOptions.penalty) return;
+
+  const lines = data.lines;
+  const fromNickname = data.from;
+  
   for (let i = 0; i < lines; i++) {
-    // 불완전한 줄 생성 (랜덤으로 한 칸 비움)
-    const penaltyLine = Array(COLS).fill(1); // 모두 채움
-    penaltyLine[Math.floor(Math.random() * COLS)] = 0; // 한 칸 비움
-    board.shift(); // 맨 위 줄 제거
-    board.push(penaltyLine); // 맨 아래에 불완전한 줄 추가
+    board.shift();
+    const penaltyLine = Array(COLS).fill(1);
+    // 랜덤 위치에 한 칸 비움
+    penaltyLine[Math.floor(Math.random() * COLS)] = 0;
+    board.push(penaltyLine);
   }
-  render(); // 화면 갱신
+  render();
+  
+  // 패널티 알림
+  gameMessage.textContent = `${fromNickname}님이 라인 클리어! ${lines}줄의 패널티가 추가되었습니다!`;
+  setTimeout(() => {
+    if (!gameOver) gameMessage.textContent = '';
+  }, 2000);
 });
 
-// 게임 종료 시
-socket.on('gameEnded', (winnerNickname) => {
+// 게임 종료
+socket.on('gameEnded', (data) => {
   gameOver = true;
-  gameMessage.textContent = `The end! Winner: ${winnerNickname}`;
-  document.getElementById('restartButton').style.display = 'block'; // 재시작 버튼 보이게
+  gameStarted = false;
+  clearInterval(difficultyTimer);
+  
+  // 승자가 자신인지 확인
+  const isWinner = data.winnerId === socket.id;
+  const winnerNickname = data.winnerNickname || '알 수 없음';
+  
+  const winnerMessage = isWinner ? 
+    '축하합니다! 게임에서 승리했습니다!' : 
+    `게임 종료! 승자: ${winnerNickname}`;
+  
+  gameMessage.textContent = winnerMessage;
+  
+  // 게임 종료 후 설정 패널 다시 표시하고 시작 버튼 활성화
+  setTimeout(() => {
+    settingsPanel.classList.remove('hidden');
+    startButton.disabled = false;
+  }, 1000);
 });
 
-// 재시작 버튼 클릭 시
-document.getElementById('restartButton').addEventListener('click', () => {
-  socket.emit('restartGame'); // 서버에 재시작 요청
-  document.getElementById('restartButton').style.display = 'none'; // 버튼 숨김
-});
-
-// 게임 재시작 시
-socket.on('gameRestarted', () => {
-  startGame(); // 게임 초기화하고 시작
+// 에러 메시지
+socket.on('error', (data) => {
+  gameMessage.textContent = data.message;
 });
 
 function startGame() {
+  // 난이도에 따른 초기 속도 설정
+  gameSpeed = DIFFICULTY_SPEEDS[gameOptions.difficulty];
+  
+  // 게임 상태 초기화
   currentPiece = randomPiece();
   gameOver = false;
   board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
   score = 0;
-  scoreDisplay.textContent = `Score: ${score}`;
+  level = 1;
+  
+  // UI 업데이트
+  scoreDisplay.textContent = `점수: ${score}`;
+  levelDisplay.textContent = `레벨: ${level}`;
+  
+  // 난이도 증가 타이머 설정
+  clearInterval(difficultyTimer);
+  difficultyTimer = setInterval(() => {
+    if (!gameOver) {
+      increaseLevel(gameOptions.difficulty);
+    }
+  }, gameOptions.speedIncreaseInterval);
+  
+  // 게임 루프 시작
   gameLoop();
+}
+
+function increaseLevel(difficulty) {
+  level++;
+  levelDisplay.textContent = `레벨: ${level}`;
+  
+  // 난이도에 따른 속도 증가
+  gameSpeed = Math.max(100, gameSpeed - DIFFICULTY_INCREASE[difficulty]);
+  
+  // 레벨 증가 알림
+  gameMessage.textContent = `레벨 ${level}! 속도 증가!`;
+  setTimeout(() => {
+    if (!gameOver) gameMessage.textContent = '';
+  }, 2000);
+  
+  // 서버에 레벨 정보 업데이트
+  socket.emit('updateBoard', { board, score, linesCleared: 0, level });
 }
 
 function gameLoop() {
   if (gameOver) return;
   moveDown();
-  setTimeout(gameLoop, 500);
+  setTimeout(gameLoop, gameSpeed);
 }
 
 function randomPiece() {
@@ -129,12 +304,14 @@ function moveDown() {
     currentPiece = randomPiece();
     if (!canMove(currentPiece.shape, currentPiece.x, currentPiece.y)) {
       gameOver = true;
+      gameStarted = false;
+      clearInterval(difficultyTimer);
       socket.emit('gameOver');
       gameMessage.textContent = '게임 오버!';
     }
   }
   render();
-  socket.emit('updateBoard', { board, score, linesCleared: 0 });
+  socket.emit('updateBoard', { board, score, linesCleared: 0, level });
 }
 
 function canMove(shape, x, y) {
@@ -152,6 +329,35 @@ function canMove(shape, x, y) {
   return true;
 }
 
+function rotatePiece() {
+  // 회전 옵션이 꺼져있으면 무시
+  if (!gameOptions.rotation) return;
+  
+  const rotated = [];
+  for (let i = 0; i < currentPiece.shape[0].length; i++) {
+    rotated.push([]);
+    for (let j = currentPiece.shape.length - 1; j >= 0; j--) {
+      rotated[i].push(currentPiece.shape[j][i]);
+    }
+  }
+  
+  // 회전 가능한지 확인
+  if (canMove(rotated, currentPiece.x, currentPiece.y)) {
+    currentPiece.shape = rotated;
+    return;
+  }
+  
+  // 벽 근처에서 회전이 안될 경우 약간 이동하여 재시도
+  const offsets = [-1, 1, -2, 2]; // 왼쪽, 오른쪽으로 시도
+  for (let offset of offsets) {
+    if (canMove(rotated, currentPiece.x + offset, currentPiece.y)) {
+      currentPiece.shape = rotated;
+      currentPiece.x += offset;
+      return;
+    }
+  }
+}
+
 function fixPiece() {
   for (let i = 0; i < currentPiece.shape.length; i++) {
     for (let j = 0; j < currentPiece.shape[i].length; j++) {
@@ -164,39 +370,62 @@ function fixPiece() {
 
 function clearLines() {
   let linesCleared = 0;
-
-  // 보드의 아래쪽부터 위로 확인
   for (let i = ROWS - 1; i >= 0; i--) {
-    if (board[i].every(cell => cell === 1)) { // 라인이 완전히 채워졌는지 확인
-      board.splice(i, 1); // 해당 라인 제거
+    if (board[i].every(cell => cell)) {
+      board.splice(i, 1);
+      board.unshift(Array(COLS).fill(0));
+      score += 100 * level; // 레벨에 비례하여 점수 증가
       linesCleared++;
+      i++;
     }
   }
-
-  // 제거한 라인 수만큼 맨 위에 빈 라인 추가
-  for (let i = 0; i < linesCleared; i++) {
-    board.unshift(Array(COLS).fill(0)); // 빈 라인 추가
-  }
-
-  // 점수 업데이트 및 서버로 전송
+  
   if (linesCleared > 0) {
-    score += linesCleared * 100;
     scoreDisplay.textContent = `점수: ${score}`;
-    socket.emit('updateBoard', { board, score, linesCleared });
+    socket.emit('updateBoard', { 
+      board, 
+      score, 
+      linesCleared,
+      level,
+      nickname: playerNickname,
+      penalty: gameOptions.penalty // 패널티 옵션 전송
+    });
   }
-
-  render(); // 화면 즉시 갱신
 }
 
 function render() {
   ctx.clearRect(0, 0, canvas.width, canvas.height);
+  
+  // 그리드 그리기
+  ctx.strokeStyle = '#333';
+  ctx.lineWidth = 0.5;
+  
+  for (let i = 0; i <= ROWS; i++) {
+    ctx.beginPath();
+    ctx.moveTo(0, i * BLOCK_SIZE);
+    ctx.lineTo(canvas.width, i * BLOCK_SIZE);
+    ctx.stroke();
+  }
+  
+  for (let j = 0; j <= COLS; j++) {
+    ctx.beginPath();
+    ctx.moveTo(j * BLOCK_SIZE, 0);
+    ctx.lineTo(j * BLOCK_SIZE, canvas.height);
+    ctx.stroke();
+  }
+  
+  // 보드 그리기
   renderBoard(ctx, board, BLOCK_SIZE);
+  
+  // 현재 조각 그리기
   if (currentPiece) {
     renderPiece(ctx, currentPiece.shape, currentPiece.x, currentPiece.y);
   }
 }
 
 function renderBoard(context, boardData, blockSize) {
+  if (!boardData) return;
+  
   for (let i = 0; i < ROWS; i++) {
     for (let j = 0; j < COLS; j++) {
       if (boardData[i][j]) {
@@ -218,8 +447,15 @@ function renderPiece(context, shape, x, y) {
   }
 }
 
+// 방향키 이벤트 처리 개선 - preventDefault 추가하여 스크롤 방지
 document.addEventListener('keydown', (e) => {
-  if (gameOver || !currentPiece) return;
+  if (gameOver || !currentPiece || !gameStarted) return;
+  
+  // 게임 컨트롤에 사용되는 키는 기본 동작 방지
+  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', ' '].includes(e.key)) {
+    e.preventDefault();
+  }
+  
   switch (e.key) {
     case 'ArrowLeft':
       if (canMove(currentPiece.shape, currentPiece.x - 1, currentPiece.y)) currentPiece.x--;
@@ -230,10 +466,82 @@ document.addEventListener('keydown', (e) => {
     case 'ArrowDown':
       moveDown();
       break;
+    case 'ArrowUp':
+      rotatePiece(); // 회전 함수 호출
+      break;
     case ' ':
       while (canMove(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) currentPiece.y++;
       moveDown();
       break;
   }
   render();
+});
+
+// 모바일 터치 컨트롤 추가
+if ('ontouchstart' in window) {
+  addTouchControls();
+}
+
+function addTouchControls() {
+  const controlsDiv = document.createElement('div');
+  controlsDiv.className = 'touch-controls';
+  
+  const leftBtn = document.createElement('button');
+  leftBtn.textContent = '←';
+  leftBtn.addEventListener('click', () => {
+    if (!gameOver && currentPiece && gameStarted && 
+        canMove(currentPiece.shape, currentPiece.x - 1, currentPiece.y)) {
+      currentPiece.x--;
+      render();
+    }
+  });
+  
+  const rightBtn = document.createElement('button');
+  rightBtn.textContent = '→';
+  rightBtn.addEventListener('click', () => {
+    if (!gameOver && currentPiece && gameStarted && 
+        canMove(currentPiece.shape, currentPiece.x + 1, currentPiece.y)) {
+      currentPiece.x++;
+      render();
+    }
+  });
+  
+  const downBtn = document.createElement('button');
+  downBtn.textContent = '↓';
+  downBtn.addEventListener('click', () => {
+    if (!gameOver && currentPiece && gameStarted) {
+      moveDown();
+    }
+  });
+  
+  const rotateBtn = document.createElement('button');
+  rotateBtn.textContent = '↻';
+  rotateBtn.addEventListener('click', () => {
+    if (!gameOver && currentPiece && gameStarted) {
+      rotatePiece();
+      render();
+    }
+  });
+  
+  const dropBtn = document.createElement('button');
+  dropBtn.textContent = '⬇︎';
+  dropBtn.addEventListener('click', () => {
+    if (!gameOver && currentPiece && gameStarted) {
+      while (canMove(currentPiece.shape, currentPiece.x, currentPiece.y + 1)) currentPiece.y++;
+      moveDown();
+    }
+  });
+  
+  controlsDiv.appendChild(leftBtn);
+  controlsDiv.appendChild(downBtn);
+  controlsDiv.appendChild(rotateBtn);
+  controlsDiv.appendChild(rightBtn);
+  controlsDiv.appendChild(dropBtn);
+  
+  document.querySelector('.my-board').appendChild(controlsDiv);
+}
+
+// 페이지 로드 시 포커스 설정
+window.addEventListener('load', () => {
+  nicknameInput.focus();
 });
