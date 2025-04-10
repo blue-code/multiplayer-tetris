@@ -81,7 +81,7 @@ socket.on('addPenaltyLines', (lines) => {
 // 게임 종료 시
 socket.on('gameEnded', (winnerNickname) => {
   gameOver = true;
-  gameMessage.textContent = `게임 종료! 승자: ${winnerNickname}`;
+  gameMessage.textContent = `The end! Winner: ${winnerNickname}`;
   document.getElementById('restartButton').style.display = 'block'; // 재시작 버튼 보이게
 });
 
@@ -101,7 +101,7 @@ function startGame() {
   gameOver = false;
   board = Array(ROWS).fill().map(() => Array(COLS).fill(0));
   score = 0;
-  scoreDisplay.textContent = `점수: ${score}`;
+  scoreDisplay.textContent = `Score: ${score}`;
   gameLoop();
 }
 
