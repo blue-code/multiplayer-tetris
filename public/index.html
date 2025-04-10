@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
   <title>Tetra Clash</title>
   <link rel="stylesheet" href="styles.css">
 </head>
@@ -81,5 +81,36 @@
   
   <script src="/socket.io/socket.io.js"></script>
   <script src="game.js"></script>
+  <!-- 파일 끝부분, 닫는 body 태그 바로 앞에 다음 스크립트 추가 -->
+    <script>
+        // 터치 이벤트 제어를 위한 코드
+        document.addEventListener('touchmove', function(event) {
+            if (event.scale !== 1) {
+                event.preventDefault();
+            }
+        }, { passive: false });
+
+        // 더블 탭으로 인한 확대 방지
+        let lastTouchEnd = 0;
+        document.addEventListener('touchend', function(event) {
+            const now = Date.now();
+            if (now - lastTouchEnd <= 300) {
+                event.preventDefault();
+            }
+            lastTouchEnd = now;
+        }, { passive: false });
+
+        // iOS에서의 확대/축소 제스처 방지
+        document.addEventListener('gesturestart', function(e) {
+            e.preventDefault();
+        }, { passive: false });
+
+        // 멀티 터치 방지 (핀치 줌 방지)
+        document.documentElement.addEventListener('touchstart', function(e) {
+            if (e.touches.length > 1) {
+                e.preventDefault();
+            }
+        }, { passive: false });
+    </script>
 </body>
 </html>

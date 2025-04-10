@@ -48,12 +48,15 @@ const DIFFICULTY_INCREASE = {
   hard: 100
 };
 
+// 개선안: PIECES 배열에 누락된 조각 추가
 const PIECES = [
   [[1, 1, 1, 1]], // I
   [[1, 1], [1, 1]], // O
   [[1, 1, 1], [0, 1, 0]], // T
   [[1, 1, 1], [1, 0, 0]], // L
-  [[1, 1, 1], [0, 0, 1]]  // J
+  [[1, 1, 1], [0, 0, 1]], // J
+  [[0, 1, 1], [1, 1, 0]], // S (추가)
+  [[1, 1, 0], [0, 1, 1]]  // Z (추가)
 ];
 
 // 닉네임 입력 후 게임 참여
@@ -541,7 +544,99 @@ function addTouchControls() {
   document.querySelector('.my-board').appendChild(controlsDiv);
 }
 
-// 페이지 로드 시 포커스 설정
+// 페이지 로드 시 포커스 설정과 터치 이벤트 제어
 window.addEventListener('load', () => {
   nicknameInput.focus();
+  
+  // 메타 태그 업데이트 - 확대/축소 방지
+  const viewportMeta = document.querySelector('meta[name="viewport"]');
+  if (viewportMeta) {
+    viewportMeta.content = 'width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no';
+  }
+  
+  // 모바일 환경인 경우 터치 이벤트 제어
+  if ('ontouchstart' in window) {
+    setupTouchControls();
+  }
 });
+
+// 모바일 터치 이벤트 최적화
+function setupTouchControls() {
+  // 문서 전체에 확대/축소 방지 이벤트 리스너 추가
+  document.addEventListener('touchmove', function(event) {
+    // 닉네임 입력 필드는 기본 동작 유지 - 터치 처리에서 제외
+    if (event.target.id === 'nicknameInput' || event.target.tagName === 'INPUT') {
+      return;
+    }
+    
+    // 게임 진행 중이거나 인풋 필드가 아닌 경우에만 확대/축소 방지
+    if (event.scale !== 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+  
+  // 더블 탭으로 인한 확대 방지
+  let lastTouchEnd = 0;
+  document.addEventListener('touchend', function(event) {
+    // 닉네임 입력 필드와 버튼은 기본 동작 유지
+    if (event.target.id === 'nicknameInput' || 
+        event.target.id === 'joinButton' || 
+        event.target.tagName === 'INPUT' ||
+        event.target.tagName === 'BUTTON') {
+      return;
+    }
+    
+    const now = Date.now();
+    if (now - lastTouchEnd <= 300) {
+      event.preventDefault();
+    }
+    lastTouchEnd = now;
+  }, { passive: false });
+  
+  // iOS에서의 확대/축소 제스처 방지
+  document.addEventListener('gesturestart', function(e) {
+    // 닉네임 입력 필드는 기본 동작 유지
+    if (e.target.id === 'nicknameInput' || 
+        e.target.tagName === 'INPUT') {
+      return;
+    }
+    e.preventDefault();
+  }, { passive: false });
+  
+  // 게임 영역의 핀치 줌 방지
+  const gameContainer = document.querySelector('.game-area-container');
+  if (gameContainer) {
+    gameContainer.addEventListener('touchstart', function(e) {
+      if (e.touches.length > 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+  }
+  
+  // 게임 영역과 컨트롤 영역만 제어
+  const gameScreen = document.getElementById('gameScreen');
+  if (gameScreen) {
+    gameScreen.addEventListener('touchstart', function(e) {
+      // 입력 필드나 버튼은 기본 동작 유지
+      if (e.target.tagName === 'INPUT' || 
+          e.target.tagName === 'BUTTON' || 
+          e.target.id === 'nicknameInput' ||
+          e.target.id === 'joinButton') {
+        return;
+      }
+    }, { passive: true });
+  }
+  
+  // 게임 컨트롤 버튼에 대한 터치 이벤트 처리
+  const gameControlButtons = document.querySelectorAll('.touch-controls button');
+  gameControlButtons.forEach(button => {
+    button.addEventListener('touchstart', function(e) {
+      e.preventDefault();
+      this.click();
+    }, { passive: false });
+    
+    button.addEventListener('touchend', function(e) {
+      e.preventDefault();
+    }, { passive: false });
+  });
+}

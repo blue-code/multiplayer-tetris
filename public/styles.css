@@ -314,3 +314,28 @@ select, input[type="number"] {
     width: 100%;
   }
 }
+
+/* 모바일 터치 컨트롤 관련 스타일 추가 */
+html, body {
+    touch-action: manipulation;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    -moz-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
+}
+
+.game-container {
+    touch-action: none;
+}
+
+/* 모바일 환경에서 버튼 크기 최적화 */
+@media (max-width: 768px) {
+    button, .control-button {
+        min-width: 44px;
+        min-height: 44px;
+        padding: 10px;
+        margin: 5px;
+        touch-action: manipulation;
+    }
+}
