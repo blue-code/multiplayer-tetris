@@ -23,14 +23,14 @@ const PIECES = [
   [[1, 1, 1], [0, 0, 1]]  // J
 ];
 
-// 방 참여 (닉네임과 방 ID 전송)
+// 방 참여 (닉네임만 입력하면 됨)
 document.getElementById('joinButton').addEventListener('click', () => {
-  const roomId = document.getElementById('roomInput').value;
   const nickname = document.getElementById('nicknameInput').value;
-  if (!nickname || !roomId) {
-    alert('닉네임과 방 ID를 모두 입력하세요!');
+  if (!nickname) {
+    alert('닉네임을 입력하세요!');
     return;
   }
+  const roomId = 'defaultRoom'; // 고정된 방 ID
   socket.emit('joinRoom', { roomId, nickname });
 });
 
@@ -78,10 +78,22 @@ socket.on('addPenaltyLines', (lines) => {
   render(); // 화면 갱신
 });
 
-// 게임 종료
+// 게임 종료 시
 socket.on('gameEnded', (winnerNickname) => {
   gameOver = true;
   gameMessage.textContent = `게임 종료! 승자: ${winnerNickname}`;
+  document.getElementById('restartButton').style.display = 'block'; // 재시작 버튼 보이게
+});
+
+// 재시작 버튼 클릭 시
+document.getElementById('restartButton').addEventListener('click', () => {
+  socket.emit('restartGame'); // 서버에 재시작 요청
+  document.getElementById('restartButton').style.display = 'none'; // 버튼 숨김
+});
+
+// 게임 재시작 시
+socket.on('gameRestarted', () => {
+  startGame(); // 게임 초기화하고 시작
 });
 
 function startGame() {

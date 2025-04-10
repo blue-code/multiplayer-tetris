@@ -85,7 +85,23 @@ io.on('connection', (socket) => {
       else io.to(roomId).emit('playerList', rooms[roomId].players.map(p => p.nickname));
     }
   });
+  
+  socket.on('restartGame', () => {
+	  const roomId = getRoomId(socket); // 소켓에서 방 ID 가져오기
+	  if (rooms[roomId]) {
+		rooms[roomId].started = false; // 게임 시작 상태 초기화
+		rooms[roomId].players.forEach(player => {
+		  player.gameOver = false; // 플레이어 상태 초기화
+		  player.score = 0;
+		  player.board = null;
+		});
+		io.to(roomId).emit('gameRestarted'); // 모든 클라이언트에 재시작 알림
+	  }
+	});
+
 });
+
+
 
 function getRoomId(socket) {
   return Array.from(socket.rooms)[1]; // 첫 번째는 socket.id, 두 번째는 roomId
