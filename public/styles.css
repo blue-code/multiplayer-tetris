@@ -256,6 +256,10 @@ h1 {
   cursor: not-allowed;
 }
 
+#playAgainButton {
+  margin-left: 10px; /* Add some space next to the start button */
+}
+
 /* 모바일 터치 컨트롤 */
 .touch-controls {
   display: flex;

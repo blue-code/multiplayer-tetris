@@ -60,6 +60,7 @@
       <div class="game-action-bar">
         <div id="players" class="players-list"></div>
         <button id="startButton" class="primary-button" disabled>게임 시작</button>
+        <button id="playAgainButton" class="primary-button" style="display: none;">다시 플레이</button>
       </div>
       
       <div class="game-area-container">
@@ -80,7 +81,6 @@
   </div>
   
   <script src="/socket.io/socket.io.js"></script>
-  <script src="game.js"></script>
   <!-- 파일 끝부분, 닫는 body 태그 바로 앞에 다음 스크립트 추가 -->
     <script>
         // 터치 이벤트 제어를 위한 코드
@@ -118,8 +118,6 @@
       <div id="resultText" class="result-text"></div>
     </div>
   </div>
-  
-  <script src="/socket.io/socket.io.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

@@ -17,6 +17,7 @@ const rotationOption = document.getElementById('rotationOption');
 const penaltyOption = document.getElementById('penaltyOption');
 const difficultyOption = document.getElementById('difficultyOption');
 const speedIncreaseTime = document.getElementById('speedIncreaseTime');
+const playAgainButton = document.getElementById('playAgainButton');
 
 const ROWS = 20;
 const COLS = 10;
@@ -118,13 +119,34 @@ socket.on('playerList', (players) => {
     playersList.appendChild(playerItem);
   });
   
-  // 최소 2명 이상이면 게임 시작 버튼 활성화
-  startButton.disabled = players.length < 2 || gameStarted;
-  
-  if (players.length < 2 && !gameStarted) {
-    gameMessage.textContent = '게임 시작을 위해 최소 2명의 플레이어가 필요합니다.';
-  } else if (!gameStarted) {
-    gameMessage.textContent = '게임을 시작할 수 있습니다!';
+  // Manages the visibility and state of the startButton based on player count, game state, and playAgainButton visibility.
+  // Also updates the game message accordingly.
+  if (playAgainButton.style.display === 'none' || playAgainButton.style.display === '') {
+    // This block executes if the 'Play Again' flow is NOT active.
+    // Enable startButton if 2 or more players are present and game hasn't started.
+    startButton.disabled = players.length < 2 || gameStarted;
+
+    if (!gameStarted) { // If a game is not currently in progress:
+      startButton.style.display = 'inline-block'; // Show the start button.
+    } else { // If a game is in progress:
+      startButton.style.display = 'none'; // Hide the start button.
+    }
+
+    // Update game message based on player count and game state.
+    if (players.length < 2 && !gameStarted) {
+      gameMessage.textContent = '게임 시작을 위해 최소 2명의 플레이어가 필요합니다.'; // Not enough players.
+    } else if (!gameStarted) {
+      // Only update to "Ready to start" if not overriding a more specific message from game end or settings change.
+      if (gameMessage.textContent !== 'Game Over! Play Again or adjust settings and start a new game.' &&
+          gameMessage.textContent !== 'Settings changed. Press Start Game when ready.') {
+        gameMessage.textContent = '게임을 시작할 수 있습니다!'; // Enough players, ready to start.
+      }
+    }
+  } else {
+    // This block executes if the 'Play Again' button IS visible (i.e., game just ended).
+    // In this case, the startButton should be hidden and disabled, deferring to Play Again or settings adjustment.
+    startButton.style.display = 'none';
+    startButton.disabled = true;
   }
 });
 
@@ -137,21 +159,23 @@ socket.on('roomInfo', (info) => {
 // 게임 시작 알림
 socket.on('gameStarted', (options) => {
   gameMessage.textContent = '게임이 시작되었습니다!';
-  gameStarted = true;
+  gameStarted = true; // Mark that the game is active.
   
-  // 결과 팝업 초기화
+  // Hide any lingering result popups.
   const resultPopup = document.getElementById('resultPopup');
   if (resultPopup) {
     resultPopup.classList.remove('show');
   }
   
-  // 게임 시작 후 설정 패널 숨기기
+  // Hide settings panel during active gameplay.
   settingsPanel.classList.add('hidden');
   
-  // 시작 버튼 비활성화
+  // Hide and disable start and play again buttons during active gameplay.
   startButton.disabled = true;
+  startButton.style.display = 'none';
+  playAgainButton.style.display = 'none';
   
-  // 기존 옵션과 서버에서 받은 옵션 병합
+  // Store the game options received from the server.
   gameOptions = {...gameOptions, ...options};
   
   // 게임 시작
@@ -225,53 +249,88 @@ socket.on('gameEnded', (data) => {
   gameOver = true;
   gameStarted = false;
   clearInterval(difficultyTimer);
-  
-  // 승자가 자신인지 확인
+
   const isWinner = data.winnerId === socket.id;
   const winnerNickname = data.winnerNickname || '알 수 없음';
-  
-  const winnerMessage = isWinner ? 
-    '축하합니다! 게임에서 승리했습니다!' : 
+
+  const resultMessage = isWinner ?
+    '축하합니다! 게임에서 승리했습니다!' :
     `게임 종료! 승자: ${winnerNickname}`;
-  
-  gameMessage.textContent = winnerMessage;
-  
+
+  // 원래 gameMessage.textContent = resultMessage; 였으나, 팝업에 메시지를 표시하므로 여기서는 제거.
   // 결과 팝업 표시
-  showResultPopup(isWinner);
-  
-  // 게임 종료 후 설정 패널 다시 표시하고 시작 버튼 활성화
+  showResultPopup(isWinner, resultMessage); // Show "WINNER" or "LOSER" popup.
+
+  // After a delay (allowing popup to be seen), update UI for post-game options.
   setTimeout(() => {
-    settingsPanel.classList.remove('hidden');
-    startButton.disabled = false;
-  }, 2500); // 팝업이 표시되는 시간보다 좀 더 길게 설정
+    settingsPanel.classList.remove('hidden'); // Show settings panel again.
+    startButton.style.display = 'none';       // Keep start button hidden initially.
+    startButton.disabled = true;              // And disabled.
+    playAgainButton.style.display = 'inline-block'; // Show 'Play Again' button.
+    // Update game message to guide user for next actions.
+    gameMessage.textContent = 'Game Over! Play Again or adjust settings and start a new game.';
+  }, 2500); // Delay should be longer than resultPopup display time (2000ms).
 });
 
-// 결과 팝업을 표시하는 함수 추가
-function showResultPopup(isWinner) {
+// 결과 팝업을 표시하는 함수 추가 (메시지 파라미터 추가)
+function showResultPopup(isWinner, message) {
   const resultPopup = document.getElementById('resultPopup');
   const resultText = document.getElementById('resultText');
-  
+
   if (!resultPopup || !resultText) return;
-  
+
+  resultText.textContent = message; // 전달받은 메시지로 텍스트 설정
+
   // 승자/패자에 따른 텍스트와 스타일 설정
   if (isWinner) {
-    resultText.textContent = 'WINNER';
+    // resultText.textContent = 'WINNER'; // 메시지로 대체됨
     resultPopup.classList.add('winner');
     resultPopup.classList.remove('loser');
   } else {
-    resultText.textContent = 'LOSER';
+    // resultText.textContent = 'LOSER'; // 메시지로 대체됨
     resultPopup.classList.add('loser');
     resultPopup.classList.remove('winner');
   }
-  
+
   // 팝업 표시
   resultPopup.classList.add('show');
-  
+
   // 2초 후 팝업 숨기기
   setTimeout(() => {
     resultPopup.classList.remove('show');
   }, 2000);
 }
+
+// Event listener for the 'Play Again' button.
+playAgainButton.addEventListener('click', () => {
+  playAgainButton.style.display = 'none'; // Hide the 'Play Again' button itself.
+  // Start button should remain hidden and disabled, as gameStarted will handle it.
+
+  gameMessage.textContent = 'Starting new game with the same options...';
+  // Re-emit 'startGame' with the previously used gameOptions.
+  socket.emit('startGame', gameOptions);
+});
+
+// Event listeners for game settings changes.
+// This allows a player to switch from "Play Again" to a new game with different settings.
+[rotationOption, penaltyOption, difficultyOption, speedIncreaseTime].forEach(setting => {
+  setting.addEventListener('change', () => {
+    // Only act if a game has just finished (gameOver is true).
+    // If settings are changed, it implies the player wants a new custom game, not just "Play Again".
+    if (gameOver) {
+      playAgainButton.style.display = 'none';   // Hide the 'Play Again' button.
+      startButton.style.display = 'inline-block'; // Show the 'Start Game' button.
+      // Enable startButton. The 'playerList' event handler will ultimately determine
+      // if it stays enabled based on player count. This provides immediate feedback.
+      startButton.disabled = false;
+      gameMessage.textContent = 'Settings changed. Press Start Game when ready.';
+    }
+    // If 'gameOver' is false (e.g., in the lobby before any game or during a game),
+    // changes to settings don't need to toggle button visibility here.
+    // The 'playerList' handler manages the 'Start Game' button state in the lobby.
+    // Settings are collected when 'startButton' is clicked.
+  });
+});
 
 // 에러 메시지
 socket.on('error', (data) => {
